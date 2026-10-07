@@ -1,12 +1,9 @@
--- =====================================================================
--- Challenge Reporting & Automation — Venta Olimpiadas 2026
--- Motor: DuckDB. Cada bloque empieza con "-- name: <nombre>".
--- =====================================================================
+-- Venta Olimpiadas 2026 - consultas (DuckDB)
+-- cada consulta tiene un "-- name:" para poder correrla sola con src/correr.py
 
 
 -- name: carga
--- Crea las tablas a partir de los CSV. El separador se indica explícito
--- (los tres CSV usan ';') para no depender de la autodetección.
+-- carga de los csv, pongo el separador a mano para no depender de que lo detecte
 CREATE OR REPLACE TABLE ventas AS
 SELECT * FROM read_csv('data/ventas.csv', delim = ';', header = true);
 
@@ -103,11 +100,11 @@ ORDER BY t0.categoria, t0.titulo;
 
 
 -- name: productos_evento
--- Clasifica cada producto del catálogo como oficial / particular / fuera.
--- 1) oficial = vendedores 700100-700500, sin importar título ni categoría.
--- 2) particular = título menciona el evento + categoría camisetas/albumes/cartas
--- + no es falso positivo (título con un año distinto de 2026).
--- 3) fuera = todo lo demás (incluye libros del evento: decisión opción a).
+-- clasificacion de productos:
+-- oficial: las cuentas de la licenciataria (todo lo que publican es del evento)
+-- particular: titulo con "olimp" en camisetas/albumes/cartas, sacando los que
+-- tienen otro año (album 1992, camiseta 2016)
+-- fuera: el resto. los libros/posters 2026 quedan aca, se muestran aparte
 CREATE OR REPLACE TABLE productos_evento AS
 SELECT t0.*,
        regexp_extract(t0.titulo, '(19|20)\d{2}') AS anio_titulo,
@@ -138,7 +135,7 @@ SELECT * FROM productos_evento t0 ORDER BY t0.clasificacion, t0.titulo;
 -- ETAPA 3 - CALCULOS DE VENTA 
 
 -- name: ventas_evento
--- Ventas de productos del evento (oficial + particular), con su período.
+-- solo ventas del evento, con el periodo (antes / durante / despues)
 CREATE OR REPLACE TABLE ventas_evento AS
 SELECT t0.*,
        t1.titulo,
@@ -160,11 +157,9 @@ SELECT ROUND(SUM(t0.monto_usd), 2) AS total_evento,
 FROM ventas_evento t0;
 
 -- name: totales
--- Los tres números de "venta de Olimpiadas":
---   total_periodo: todo lo vendido de productos del evento (01/05 al 31/08).
---   durante:  solo 14/07 al 30/07.
---   incremental: lo vendido por encima de la base diaria (promedio 01/05 al 15/06),
---   sumado día por día; un día por debajo de la base cuenta 0.
+-- total del periodo, durante los juegos (14/07 al 30/07) e incremental
+-- base = promedio diario del 01/05 al 15/06 (antes de que empiece a subir)
+-- incremental = total - base * 123 dias
 WITH venta_dia AS (
     SELECT t0.fecha, SUM(t0.monto_usd) AS venta
     FROM ventas_evento t0
@@ -177,16 +172,14 @@ base AS (
 )
 SELECT ROUND(SUM(t0.venta), 2) AS total_periodo,
        ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND(SUM(GREATEST(t0.venta - t1.base_diaria, 0)), 2) AS incremental,
+       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * 123, 2) AS incremental,
        ROUND(ANY_VALUE(t1.base_diaria), 2) AS base_diaria
 FROM venta_dia t0
 CROSS JOIN base t1;
 
 
 -- name: por_pais
--- Venta del evento por país. Cada país se compara contra SU propia base diaria
--- (promedio 01/05 al 15/06), porque los mercados tienen tamaños muy distintos.
--- pct_oficial: qué parte de la venta del país fue merchandising oficial.
+-- por pais, cada uno contra su propia base (los paises son de tamaños muy distintos)
 WITH venta_dia AS (
     SELECT t0.pais, t0.fecha,
            SUM(t0.monto_usd) AS venta,
@@ -203,7 +196,7 @@ base AS (
 SELECT t0.pais,
        ROUND(SUM(t0.venta), 2) AS total_periodo,
        ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND(SUM(GREATEST(t0.venta - t1.base_diaria, 0)), 2) AS incremental,
+       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * 123, 2) AS incremental,
        ROUND(ANY_VALUE(t1.base_diaria), 2) AS base_diaria,
        ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
              / COUNT(*) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
@@ -217,10 +210,15 @@ ORDER BY total_periodo DESC;
 
 
 -- name: oficial_vs_particular
--- ¿Valió la pena el merchandising oficial? Misma lógica que por_pais, por clasificación,
--- más cuántos productos vendieron y cuánto vendió cada uno en promedio.
+-- oficial vs particular, igual que por_pais
+-- venta_cat_exclusivas = lo que vende el oficial en categorias donde no hay
+-- particulares (botellas y mochilas)
 WITH venta_dia AS (
-    SELECT t0.clasificacion, t0.fecha, SUM(t0.monto_usd) AS venta
+    SELECT t0.clasificacion, t0.fecha,
+           SUM(t0.monto_usd) AS venta,
+           COALESCE(SUM(t0.monto_usd) FILTER (WHERE t0.categoria NOT IN (
+               SELECT t9.categoria FROM ventas_evento t9 WHERE t9.clasificacion = 'particular')), 0)
+               AS venta_cat_exclusivas
     FROM ventas_evento t0
     GROUP BY ALL
 ),
@@ -240,11 +238,13 @@ SELECT t0.clasificacion,
        ROUND(SUM(t0.venta), 2) AS total_periodo,
        ROUND(SUM(t0.venta) / ANY_VALUE(t2.productos), 2) AS venta_x_producto,
        ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND(SUM(GREATEST(t0.venta - t1.base_diaria, 0)), 2) AS incremental,
+       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * 123, 2) AS incremental,
        ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
              / COUNT(*) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
              / ANY_VALUE(t1.base_diaria), 1) AS veces_base_durante,
-       ROUND(100 * SUM(t0.venta) / SUM(SUM(t0.venta)) OVER (), 1) AS pct_total
+       ROUND(100 * SUM(t0.venta) / SUM(SUM(t0.venta)) OVER (), 1) AS pct_total,
+       ROUND(SUM(t0.venta_cat_exclusivas), 2) AS venta_cat_exclusivas,
+       ROUND(100 * SUM(t0.venta_cat_exclusivas) / SUM(t0.venta), 1) AS pct_cat_exclusivas
 FROM venta_dia t0
 JOIN base t1 ON t1.clasificacion = t0.clasificacion
 JOIN prods t2 ON t2.clasificacion = t0.clasificacion
@@ -253,8 +253,8 @@ ORDER BY total_periodo DESC;
 
 
 -- name: curva_semanal
--- Cuánto duró el efecto: venta por día de cada semana (lunes a domingo) vs la base.
--- Ojo: la primera semana (desde 27/04) y la última (31/08) están incompletas.
+-- venta por semana vs la base, para ver cuanto duro el efecto
+-- la primera y la ultima semana estan incompletas, por eso uso venta por dia
 WITH base AS (
     SELECT SUM(t0.monto_usd) / 46 AS base_diaria
     FROM ventas_evento t0
@@ -273,8 +273,7 @@ ORDER BY semana;
 
 
 -- name: hallazgo_libros
--- Productos de particulares que SON del evento (título con 'olimp' y año 2026)
--- pero quedaron fuera por categoría (decisión #8). Se muestran aparte.
+-- libros y posters 2026: son del evento pero no estan en las categorias del mail
 SELECT t1.categoria,
        COUNT(DISTINCT t1.producto_id) AS productos,
        ROUND(SUM(t0.monto_usd), 2) AS total_periodo,

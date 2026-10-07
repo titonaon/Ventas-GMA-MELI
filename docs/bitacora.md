@@ -1,7 +1,7 @@
 # Bitácora — Challenge Reporting & Automation
 
 ## Contexto vigente
-- Paso actual: **Etapa 3 — Cálculos**. Etapas 1 y 2 cerradas. `productos_evento` validada: oficial 70 productos / USD 113.237,37; particular 97 / USD 161.416,94; **total evento USD 274.654,31**.
+- Paso actual: **Etapa 5 — Pipeline y config**. Etapas 1 a 4 cerradas. Total evento USD 274.654,31; incremental USD 205.948,33 (#9).
 - Para correr bloques: `python src/correr.py <bloque>` (siempre corre `carga` primero).
 - Trabajo en conjunto (decisión #6): Claude puede escribir código, de a partes chicas y explicando; el usuario valida cada paso.
 - Motor SQL: **DuckDB** (decisión #5).
@@ -20,6 +20,7 @@
 | 6 | 2026-10-05 | Trabajo en conjunto: Claude escribe código por partes, explicando; el usuario acompaña y valida (reemplaza #1) | Usuario solo | Se permite IA; prioridad es entender todo |
 | 7 | 2026-10-06 | Las 10 ventas repetidas se mantienen en los números y se mencionan en la nota de criterios (con el patrón de posible duplicado técnico, para avisar al equipo de datos) | Excluirlas con `ventas_raw` + `QUALIFY ROW_NUMBER()` (recomendación de Claude) | Decisión del usuario: impacto ~USD 180 (0,008%), no cambia conclusiones |
 | 8 | 2026-10-06 | Libros/pósters 2026 quedan FUERA del número principal y se muestran como hallazgo aparte (~USD 88K, lift ~7) | Incluirlos en el número | Respeta las categorías que pidió el comercial y aporta un insight para el próximo evento. Sugerido por Claude, aceptado |
+| 9 | 2026-10-06 | Incremental = venta del período − base diaria × 123 días (sin recorte por día). Total USD 205,9K | Suma diaria con `GREATEST(venta − base, 0)` (210,8K) | El recorte suma ruido como si fuera evento y no es aditivo (países sumaban 215,3K). Propuesto por Claude, aceptado |
 
 ## Pendientes / dudas abiertas
 - [x] Elegir motor SQL → DuckDB (#5).
@@ -68,4 +69,15 @@
 - **[Pregunta]** Inicio etapa 3 → primero tabla auxiliar `ventas_evento` (ventas + clasificación + período, solo oficial/particular); definir 3 números: total período, durante 14-30/07 e incremental vs base (promedio diario 01/05-15/06).
 - **[Hecho]** Etapa 3 escrita por el usuario (bloques `ventas_evento`, `totales`, `por_pais`, `oficial_vs_particular`, `curva_semanal`, `hallazgo_libros`); usó IA para completar queries que no sabía resolver (insumo para "uso de IA"). `correr.py` ahora corre antes todos los bloques con CREATE.
 - **[Hallazgo]** Resultados: total USD 274.654 / durante 128.107 / base diaria 558,59. Curva: x3,4 semana del 29/06, pico x13,5 (semana 20/07), x1,4 semana del 17/08, x0,8 la última semana. Oficial: sin sobreprecio (camiseta 36,1 vs 36,7; álbum 8,5 vs 8,4), 62K de sus 113K vienen de botellas y mochilas (categorías sin particulares). Colombia x16,2 pero 8,4% del volumen; México 33% oficial.
-- **[Hallazgo]** El incremental con recorte (`GREATEST(...,0)`, sugerido antes por Claude) suma desvíos positivos de ruido y no es aditivo: total 210,8K vs suma países 215,3K vs suma clases 211,7K. Sin recorte (venta − base × 123 días) = USD 205,9K y suma exacto por país. Claude recomienda cambiar a sin recorte (pendiente de confirmar).
+- **[Hallazgo]** El incremental con recorte (`GREATEST(...,0)`, sugerido antes por Claude) suma desvíos positivos de ruido y no es aditivo: total 210,8K vs suma países 215,3K vs suma clases 211,7K. Sin recorte (venta − base × 123 días) = USD 205,9K y suma exacto por país. Se cambia a sin recorte (#9).
+- **[Decisión #9]** Incremental sin recorte: USD 205,9K.
+- **[Decisión]** Para responder "¿valió la pena el oficial?" se agrega una columna `venta_cat_exclusivas` a `oficial_vs_particular` en vez de un bloque nuevo; el dato de sobreprecio queda fuera del reporte. Criterio: solo lo necesario para lo que pide el mail.
+- **[Hecho]** Etapa 4 cerrada (conclusiones abajo). Inicio etapa 5: parametrizar con variables de DuckDB (`SET VARIABLE` + `getvariable()`), probado en DuckDB 1.5.6 con rutas, fechas y listas.
+
+## Conclusiones (etapa 4)
+**Resumen:** Las Olimpiadas generaron USD 206K de venta incremental. El efecto duró unas 7 semanas y la mitad de esa venta se dio antes o después de los Juegos.
+1. **El efecto empieza antes del evento.** Las ventas suben desde 2 semanas antes, durante los Juegos llegan a 13 veces el nivel normal y se normalizan 2-3 semanas después. Recomendación: tener stock y campañas listos 3 semanas antes del próximo evento.
+2. **El merchandising oficial suma por las categorías que incorpora.** Representa el 41% de la venta y cada producto vende en línea con los particulares. El 55% de su venta viene de botellas y mochilas, categorías sin oferta de particulares. Recomendación: mantenerlo y enfocarlo en productos que no ofrecen otros vendedores.
+3. **Brasil y México concentran la venta.** Entre ambos suman el 62% del total. En México el oficial tiene la menor participación (33%), lo que muestra margen de crecimiento. Colombia tuvo el mayor crecimiento, aunque representa solo el 8% de la venta.
+4. **Libros y pósters también respondieron al evento.** Sumaron USD 88K con la misma curva que el resto, aunque no estaban dentro de las categorías analizadas. Recomendación: incluirlos en el seguimiento del próximo evento.
+**Limitación:** El análisis se basa solo en ventas. Para evaluar la rentabilidad del oficial se necesitan el margen y el costo de la licencia.
