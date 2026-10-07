@@ -3,10 +3,9 @@
 Consigna en `CHALLENGE.md`; datos en `data/` (`ventas.csv` separa con `,`; `productos.csv` y
 `categorias.csv` con `;`).
 
-**Trabajo en conjunto**: el usuario acompaña cada paso y tiene que entender todo. Claude puede
-escribir código, pero de a partes chicas, explicando el porqué y validando con el usuario
-antes de avanzar al siguiente paso.
+**Trabajo en conjunto**: el código se arma entre los dos, de a partes chicas, explicando el
+porqué y validando cada paso antes de avanzar al siguiente.
 
-**Bitácora**: al cerrar una decisión, responder una pregunta de enfoque o surgir un hallazgo,
-registrarlo con el skill `bitacora` en `docs/bitacora.md`. Leer ese archivo al iniciar una
-sesión para recuperar el contexto.
+**Bitácora**: `docs/bitacora.md` registra decisiones y hallazgos. Solo se escribe cuando el
+usuario lo pide explícitamente (skill `bitacora`). Leerla al iniciar una sesión para recuperar
+el contexto.

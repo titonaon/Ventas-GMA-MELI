@@ -202,7 +202,7 @@
     <details>
       <summary>Ver datos por país</summary>
       <table>
-        <thead><tr><th>País</th><th>Venta total (USD)</th><th>Incremental (USD)</th><th>Pico vs normal</th><th>% oficial</th><th>% del total</th></tr></thead>
+        <thead><tr><th>País</th><th>Venta total (USD)</th><th>Incremental (USD)</th><th>Durante vs normal</th><th>% oficial</th><th>% del total</th></tr></thead>
         <tbody>{% for r in tabla_paises %}<tr><td>{{ r.pais }}</td><td>{{ r.total }}</td><td>{{ r.incremental }}</td><td>{{ r.veces }}</td><td>{{ r.oficial }}</td><td>{{ r.peso }}</td></tr>{% endfor %}</tbody>
       </table>
     </details>
