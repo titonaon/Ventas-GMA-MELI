@@ -9,7 +9,7 @@ salida: output/olimpiadas_2026
 ruta_ventas: data/ventas.csv
 ruta_productos: data/productos.csv
 ruta_categorias: data/categorias.csv
-separador_ventas: ";"      # el ventas.csv original viene con ","
+separador_ventas: ","
 separador_maestros: ";"    # productos y categorias
 
 # fechas
@@ -26,13 +26,17 @@ anio_evento: "2026"        # titulos con otro año (ej: album 1992) quedan afuer
 excluir_titulos: "antiguos|modelo"   # regex de falsos positivos sin año. "" = no excluir nada
 
 # textos del reporte. entre {{ }} van numeros que calcula el pipeline:
-# incremental, total, durante, pico, pct_oficial, pct_exclusivas, libros_total, libros_veces
+# incremental, total, durante, pico, pct_oficial, pct_exclusivas, libros_total, libros_veces, pct_inc_fuera
 reporte:
   area: Artículos deportivos
   titulo: Venta Olimpiadas 2026
+  etiquetas:
+    kpi_principal: Venta extra por las Olimpiadas
+    kpi_durante: Durante los Juegos
+    evento: Juegos             # franja del grafico
   resumen: >-
-    Las Olimpiadas generaron {{ incremental }} de venta incremental. El efecto duró unas
-    7 semanas y la mitad de esa venta se dio antes o después de los Juegos.
+    Las Olimpiadas generaron {{ incremental }} de venta extra. El efecto duró unas
+    7 semanas y el {{ pct_inc_fuera }} de esa venta se dio antes o después de los Juegos.
   mensajes:
     duracion:
       titulo: El efecto empieza antes del evento

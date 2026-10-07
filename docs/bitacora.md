@@ -28,7 +28,7 @@
 - [ ] ¿"Venta de Olimpiadas" = todo el período, solo 14–30/07, o incremental? (propuesta: mostrar las tres).
 - [ ] Instalar duckdb dentro del `.venv` (activar venv + `pip install -r requirements.txt`).
 - [x] 10 pares de filas idénticas → se mantienen y se mencionan (#7).
-- [ ] Restaurar `data/ventas.csv` original (`,` y fechas ISO) y volver la carga a `delim=','`.
+- [x] `data/ventas.csv` restaurado al formato original y config con `,`.
 - [ ] Separar los chequeos de calidad en bloques `-- name: calidad_*` y completar nulos (`pais`, `unidades`), montos/unidades `<= 0`.
 
 ## Registro cronológico
@@ -83,8 +83,16 @@
 - **[Hecho]** Etapa 6 (con ayuda de IA): reporte HTML con formato Mercado Libre (logo oficial descargado de mlstatic.com, amarillo #FFE600, azul #3483FA). Paleta de gráficos validada (oficial #3F48A8 = azul marino de marca un paso más claro para pasar el chequeo de luminosidad; particular #3483FA). Todo embebido (logo en base64, Chart.js + plugin annotation) → un solo archivo de ~250KB que anda sin internet. Textos del reporte en `config` (sección `reporte`, con `{{ numeros }}` que completa el pipeline). Nuevo bloque SQL `por_categoria` para el gráfico del oficial. Probado en escritorio y celular.
 - **[Decisión]** Pico del reporte = ×13,5 (máximo semanal de `curva_semanal`, con un decimal) para no redondear a ×14 y que coincida con las conclusiones.
 
+- **[Hallazgo]** Validación independiente desde cero (pandas): todos los números del reporte coinciden. Incremental robusto a la base (203,6K-207,8K con otras ventanas). Detectado: la frase "la mitad de esa venta" era imprecisa (42% del incremental cae fuera de los Juegos; 53% de la venta total).
+- **[Hecho]** Franja de los Juegos en la curva ajustada a las fechas exactas (14/07 al 30/07).
+- **[Hecho]** `data/ventas.csv` reconstruido al formato original (`,`, fechas ISO, LF) a partir del archivo modificado por Excel, sin cambiar valores (misma suma y fechas); copia del modificado guardada fuera del proyecto. Config: `separador_ventas: ","`. Los montos pueden diferir del original solo en ceros finales (ej: 48.5 vs 48.50).
+- **[Hecho]** `totales` suma antes/durante/después (USD 81K / 128K / 65K; 1.099 / 7.536 / 2.039 por día) e `incremental_durante`; el reporte los muestra debajo de la curva. Resumen corregido: "el 42% de esa venta se dio antes o después de los Juegos".
+- **[Hecho]** README completo: entregables, cómo correrlo, criterios, escala y uso de IA. Etapa 7 en curso.
+
+- **[Decisión]** En el reporte, "venta incremental" pasa a "Venta extra por las Olimpiadas" (con "incremental: por encima del nivel normal" de apoyo) para que el director lo lea sin esfuerzo; en criterios y README queda el término técnico. Las etiquetas propias del evento ("Juegos", "Durante los Juegos") pasan a `reporte.etiquetas` en la config, así la plantilla no tiene textos de las Olimpiadas.
+
 ## Conclusiones (etapa 4)
-**Resumen:** Las Olimpiadas generaron USD 206K de venta incremental. El efecto duró unas 7 semanas y la mitad de esa venta se dio antes o después de los Juegos.
+**Resumen:** Las Olimpiadas generaron USD 206K de venta incremental. El efecto duró unas 7 semanas y el 42% de esa venta se dio antes o después de los Juegos.
 1. **El efecto empieza antes del evento.** Las ventas suben desde 2 semanas antes, durante los Juegos llegan a 13 veces el nivel normal y se normalizan 2-3 semanas después. Recomendación: tener stock y campañas listos 3 semanas antes del próximo evento.
 2. **El merchandising oficial suma por las categorías que incorpora.** Representa el 41% de la venta y cada producto vende en línea con los particulares. El 55% de su venta viene de botellas y mochilas, categorías sin oferta de particulares. Recomendación: mantenerlo y enfocarlo en productos que no ofrecen otros vendedores.
 3. **Brasil y México concentran la venta.** Entre ambos suman el 62% del total. En México el oficial tiene la menor participación (33%), lo que muestra margen de crecimiento. Colombia tuvo el mayor crecimiento, aunque representa solo el 8% de la venta.

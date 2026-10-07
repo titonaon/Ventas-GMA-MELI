@@ -168,6 +168,7 @@ FROM ventas_evento t0;
 -- total del periodo, durante el evento e incremental
 -- base = promedio diario entre inicio_base y fin_base (antes de que empiece a subir)
 -- incremental = total - base * dias del periodo
+-- antes / durante / despues: venta de cada tramo y su promedio por dia
 WITH venta_dia AS (
     SELECT t0.fecha, SUM(t0.monto_usd) AS venta
     FROM ventas_evento t0
@@ -181,7 +182,15 @@ base AS (
 SELECT ROUND(SUM(t0.venta), 2) AS total_periodo,
        ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')), 2) AS durante,
        ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * getvariable('dias_periodo'), 2) AS incremental,
-       ROUND(ANY_VALUE(t1.base_diaria), 2) AS base_diaria
+       ROUND(ANY_VALUE(t1.base_diaria), 2) AS base_diaria,
+       -- cuanto del incremental cayo dentro de los dias del evento
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento'))
+             - ANY_VALUE(t1.base_diaria) * getvariable('dias_evento'), 2) AS incremental_durante,
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha < getvariable('inicio_evento')), 2) AS antes,
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha > getvariable('fin_evento')), 2) AS despues,
+       ROUND(AVG(t0.venta) FILTER (WHERE t0.fecha < getvariable('inicio_evento')), 2) AS antes_x_dia,
+       ROUND(AVG(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')), 2) AS durante_x_dia,
+       ROUND(AVG(t0.venta) FILTER (WHERE t0.fecha > getvariable('fin_evento')), 2) AS despues_x_dia
 FROM venta_dia t0
 CROSS JOIN base t1;
 

@@ -61,6 +61,12 @@
   .leyenda i.linea { height: 2px; border-radius: 0; background: rgba(0,0,0,.45); }
   .leyenda i.franja { background: rgba(255, 230, 0, .45); }
 
+  .periodos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .periodo { border: 1px solid var(--linea); border-radius: 6px; padding: 10px 14px; }
+  .periodo.durante { border-color: var(--amarillo); background: rgba(255, 230, 0, .12); }
+  .periodo .p-nombre { font-size: 13px; color: var(--texto-2); }
+  .periodo .p-total { font-size: 20px; font-weight: 600; }
+  .periodo .p-dia { font-size: 13px; color: var(--texto-2); }
   .libros { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
   .libros .valor { font-size: 34px; font-weight: 600; }
   .limitacion { font-size: 14px; color: var(--texto-2); }
@@ -78,7 +84,7 @@
 
   @media (max-width: 900px) {
     .kpis { grid-template-columns: 1fr 1fr; }
-    .dos, .libros { grid-template-columns: 1fr; }
+    .dos, .libros, .periodos { grid-template-columns: 1fr; }
     .header-in .periodo { display: none; }
   }
   @media (max-width: 560px) {
@@ -106,9 +112,9 @@
 
   <section class="grid kpis">
     <div class="card kpi hero">
-      <div class="label">Venta incremental</div>
+      <div class="label">{{ rep.etiquetas.kpi_principal }}</div>
       <div class="valor">{{ numeros.incremental }}</div>
-      <div class="nota">por encima del nivel normal</div>
+      <div class="nota">incremental: por encima del nivel normal</div>
     </div>
     <div class="card kpi">
       <div class="label">Venta total del período</div>
@@ -116,7 +122,7 @@
       <div class="nota">productos del evento, may–ago</div>
     </div>
     <div class="card kpi">
-      <div class="label">Durante los Juegos</div>
+      <div class="label">{{ rep.etiquetas.kpi_durante }}</div>
       <div class="valor">{{ numeros.durante }}</div>
       <div class="nota">{{ cfg.inicio_evento.strftime('%d/%m') }} al {{ cfg.fin_evento.strftime('%d/%m') }}</div>
     </div>
@@ -136,7 +142,16 @@
     <div class="leyenda">
       <span><i style="background:var(--serie-particular)"></i>Venta por día (promedio de la semana)</span>
       <span><i class="linea"></i>Nivel normal</span>
-      <span><i class="franja"></i>Semanas de los Juegos</span>
+      <span><i class="franja"></i>{{ rep.etiquetas.evento }} ({{ cfg.inicio_evento.strftime('%d/%m') }} al {{ cfg.fin_evento.strftime('%d/%m') }})</span>
+    </div>
+    <div class="periodos">
+      {% for p in periodos %}
+      <div class="periodo{% if loop.index == 2 %} durante{% endif %}">
+        <div class="p-nombre">{{ p.nombre }} · {{ p.fechas }}</div>
+        <div class="p-total">{{ p.total }}</div>
+        <div class="p-dia">{{ p.x_dia }} por día</div>
+      </div>
+      {% endfor %}
     </div>
   </section>
 
@@ -238,9 +253,9 @@ new Chart(document.getElementById('g-curva'), {
         label: i => usd(i.raw) + ' por día  (×' + (i.raw / G.curva.base).toFixed(1).replace('.', ',') + ' el normal)',
       }},
       annotation: { annotations: {
-        juegos: { type: 'box', xMin: G.curva.evento_desde - .5, xMax: G.curva.evento_hasta + .5,
+        juegos: { type: 'box', xMin: G.curva.evento_desde, xMax: G.curva.evento_hasta,
                   backgroundColor: 'rgba(255,230,0,.35)', borderWidth: 0, drawTime: 'beforeDatasetsDraw',
-                  label: { display: true, content: 'Juegos', position: { x: 'center', y: 'start' },
+                  label: { display: true, content: {{ rep.etiquetas.evento | tojson }}, position: { x: 'center', y: 'start' },
                            color: 'rgba(0,0,0,.7)', font: { weight: 600 } } },
         base: { type: 'line', yMin: G.curva.base, yMax: G.curva.base, borderColor: 'rgba(0,0,0,.45)', borderWidth: 1,
                 label: { display: true, content: 'Nivel normal ' + usd(G.curva.base) + '/día', position: 'start',

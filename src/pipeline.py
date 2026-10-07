@@ -52,6 +52,10 @@ def usd_k(x):
     return f"USD {x / 1000:,.0f}K".replace(",", ".")
 
 
+def usd(x):
+    return f"USD {x:,.0f}".replace(",", ".")
+
+
 def veces(x):
     return f"×{x:.1f}".replace(".", ",")
 
@@ -65,9 +69,11 @@ def datos_reporte(cfg, res):
     curva = res["curva_semanal"]
     curva = curva[curva.dias == 7].reset_index(drop=True)
     semanas = [s.date() for s in curva.semana]
-    # semanas que tocan el evento, para pintar la franja en el grafico
-    en_evento = [i for i, s in enumerate(semanas)
-                 if s <= cfg["fin_evento"] and s + timedelta(days=6) >= cfg["inicio_evento"]]
+    # posicion exacta de una fecha en el eje: cada punto es el lunes de su semana,
+    # asi que un dia cae en indice_semana + dias_desde_el_lunes / 7
+    def posicion(d):
+        i = max(k for k, s in enumerate(semanas) if s <= d)
+        return i + (d - semanas[i]).days / 7
 
     pais = res["por_pais"]
     cat = res["por_categoria"]
@@ -81,15 +87,28 @@ def datos_reporte(cfg, res):
         "pct_exclusivas": f"{ovp.loc['oficial', 'pct_cat_exclusivas']:.0f}%",
         "libros_total": usd_k(libros.total_periodo),
         "libros_veces": veces(libros.veces_base_durante),
+        "pct_inc_fuera": f"{100 * (1 - t.incremental_durante / t.incremental):.0f}%",
     }
+
+    def fecha(d):
+        return d.strftime("%d/%m")
+
+    periodos = [
+        {"nombre": "Antes", "fechas": f"hasta {fecha(cfg['inicio_evento'] - timedelta(days=1))}",
+         "total": usd_k(t.antes), "x_dia": usd(t.antes_x_dia)},
+        {"nombre": "Durante", "fechas": f"{fecha(cfg['inicio_evento'])} al {fecha(cfg['fin_evento'])}",
+         "total": usd_k(t.durante), "x_dia": usd(t.durante_x_dia)},
+        {"nombre": "Después", "fechas": f"desde {fecha(cfg['fin_evento'] + timedelta(days=1))}",
+         "total": usd_k(t.despues), "x_dia": usd(t.despues_x_dia)},
+    ]
 
     graficos = {
         "curva": {
             "labels": [s.strftime("%d/%m") for s in semanas],
             "venta_x_dia": curva.venta_x_dia.round(0).tolist(),
             "base": round(float(t.base_diaria), 0),
-            "evento_desde": min(en_evento),
-            "evento_hasta": max(en_evento),
+            "evento_desde": posicion(cfg["inicio_evento"]),
+            "evento_hasta": posicion(cfg["fin_evento"] + timedelta(days=1)),  # hasta el final del ultimo dia
         },
         "categoria": {
             "labels": [NOMBRES.get(c, c.capitalize()) for c in cat.categoria],
@@ -110,11 +129,11 @@ def datos_reporte(cfg, res):
          "oficial": f"{r.pct_oficial:.0f}%", "peso": f"{r.pct_total:.0f}%"}
         for r in pais.itertuples()
     ]
-    return numeros, graficos, tabla_paises
+    return numeros, graficos, tabla_paises, periodos
 
 
 def armar_html(cfg, res):
-    numeros, graficos, tabla_paises = datos_reporte(cfg, res)
+    numeros, graficos, tabla_paises, periodos = datos_reporte(cfg, res)
     rep = cfg["reporte"]
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=True)
 
@@ -132,7 +151,7 @@ def armar_html(cfg, res):
 
     return env.get_template("reporte.html.j2").render(
         cfg=cfg, rep=rep, resumen=texto(rep["resumen"]), mensajes=mensajes,
-        numeros=numeros, tabla_paises=tabla_paises,
+        numeros=numeros, tabla_paises=tabla_paises, periodos=periodos,
         graficos_json=json.dumps(graficos), logo_b64=logo, librerias_js=js,
         generado=date.today().strftime("%d/%m/%Y"),
     )
