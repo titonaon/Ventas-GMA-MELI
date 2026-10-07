@@ -1,7 +1,8 @@
 """Corre un bloque de sql/consultas.sql y muestra el resultado.
 
-Uso:  python src/correr.py <bloque>      ej: python src/correr.py calidad
-El bloque "carga" se corre siempre primero para que existan las tablas.
+Uso:  python src/correr.py <bloque>      ej: python src/correr.py totales
+Antes del bloque pedido se corren, en orden, los bloques anteriores que crean
+tablas (los que tienen CREATE), así existen las tablas de las que depende.
 """
 import re
 import sys
@@ -25,9 +26,24 @@ def main():
         sys.exit(f"No existe el bloque '{pedido}'. Disponibles: {', '.join(bloques)}")
 
     con = duckdb.connect()  # base en memoria: se arma de cero en cada corrida
-    print(con.sql(bloques["carga"]))
-    if pedido != "carga":
-        print(con.sql(bloques[pedido]))
+
+    # Antes del pedido, corre en orden los bloques que crean tablas (carga,
+    # productos_evento, ...) para que existan las tablas de las que depende.
+    for nombre, sql in bloques.items():
+        if nombre == pedido:
+            break
+        if crea_tablas(sql):
+            con.execute(sql)
+            print(f"[ok] {nombre}")
+
+    resultado = con.sql(bloques[pedido])
+    if resultado is not None:  # un bloque que termina en CREATE no devuelve filas
+        resultado.show(max_rows=100, max_width=300)
+
+
+def crea_tablas(sql):
+    """True si el bloque tiene alguna línea que empiece con CREATE (ignora comentarios)."""
+    return re.search(r"^\s*CREATE\b", sql, flags=re.MULTILINE | re.IGNORECASE) is not None
 
 
 if __name__ == "__main__":
