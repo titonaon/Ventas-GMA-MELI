@@ -1,7 +1,7 @@
 # Bitácora — Challenge Reporting & Automation
 
 ## Contexto vigente
-- Paso actual: **Etapa 2 — Clasificación** (plan de 8 etapas, 0 a 7). Etapa 1 cerrada (quedan ajustes de forma en pendientes).
+- Paso actual: **Etapa 3 — Cálculos**. Etapas 1 y 2 cerradas. `productos_evento` validada: oficial 70 productos / USD 113.237,37; particular 97 / USD 161.416,94; **total evento USD 274.654,31**.
 - Para correr bloques: `python src/correr.py <bloque>` (siempre corre `carga` primero).
 - Trabajo en conjunto (decisión #6): Claude puede escribir código, de a partes chicas y explicando; el usuario valida cada paso.
 - Motor SQL: **DuckDB** (decisión #5).
@@ -19,10 +19,11 @@
 | 5 | 2026-10-05 | Motor SQL: DuckDB | SQLite | Lee CSV directo con autodetección de separador, fechas reales, ILIKE/regex, integra con pandas. Sugerido por Claude, aceptado |
 | 6 | 2026-10-05 | Trabajo en conjunto: Claude escribe código por partes, explicando; el usuario acompaña y valida (reemplaza #1) | Usuario solo | Se permite IA; prioridad es entender todo |
 | 7 | 2026-10-06 | Las 10 ventas repetidas se mantienen en los números y se mencionan en la nota de criterios (con el patrón de posible duplicado técnico, para avisar al equipo de datos) | Excluirlas con `ventas_raw` + `QUALIFY ROW_NUMBER()` (recomendación de Claude) | Decisión del usuario: impacto ~USD 180 (0,008%), no cambia conclusiones |
+| 8 | 2026-10-06 | Libros/pósters 2026 quedan FUERA del número principal y se muestran como hallazgo aparte (~USD 88K, lift ~7) | Incluirlos en el número | Respeta las categorías que pidió el comercial y aporta un insight para el próximo evento. Sugerido por Claude, aceptado |
 
 ## Pendientes / dudas abiertas
 - [x] Elegir motor SQL → DuckDB (#5).
-- [ ] ¿Libros/pósters "Juegos Olímpicos 2026" entran al número principal? (fuera de las categorías del mail, pero con el mismo pico; ~USD 88K).
+- [x] Libros/pósters 2026 → fuera del número, hallazgo aparte (#8).
 - [ ] ¿"Venta de Olimpiadas" = todo el período, solo 14–30/07, o incremental? (propuesta: mostrar las tres).
 - [ ] Instalar duckdb dentro del `.venv` (activar venv + `pip install -r requirements.txt`).
 - [x] 10 pares de filas idénticas → se mantienen y se mencionan (#7).
@@ -61,3 +62,7 @@
 - **[Hallazgo]** Los 10 pares repetidos tienen patrón de duplicado técnico: IDs consecutivos (diferencia 1-3), todos de 1 unidad, los 10 son productos con título olímpico y 9 de 10 caen entre el 12/07 y el 01/08 (pico del evento). Impacto ~USD 180 total, ~USD 134 en el número del evento (8 de los 10 son oficiales o particulares 2026). Claude cambia su recomendación: excluirlos (antes: mantenerlos). Pendiente que el usuario decida.
 - **[Decisión #7]** Repetidas: se mantienen y se mencionan.
 - **[Hecho]** Etapa 1 cerrada. Inicio etapa 2: primero exploración de títulos que matchean keywords (con `strip_accents` + `ILIKE`) y su venta por período, para definir exclusiones.
+- **[Hallazgo]** `explorar_titulos` normalizado por día (antes 74 d, durante 17 d, después 32 d): separación limpia. Falsos positivos con lift ~1,0 (Álbum 1992, Camiseta Comité 2016, DVD Berlín 1936, Libro Historia antiguos, Mochila Escolar Modelo); productos del evento con lift 6,3-8,0 (incluye Libro Guía 2026 y Póster 2026). La regla de `productos_evento` (oficial por vendedor; particular = keyword + 3 categorías + sin año distinto de 2026) separa exactamente esos grupos.
+- **[Decisión #8]** Libros/pósters 2026 fuera del número principal, como hallazgo aparte.
+- **[Hecho]** Etapa 2 cerrada: `productos_evento` validada (coincide con la exploración inicial). Nota: el último SELECT del bloque es un `SELECT *` de 700 filas y tapa el control por clase.
+- **[Pregunta]** Inicio etapa 3 → primero tabla auxiliar `ventas_evento` (ventas + clasificación + período, solo oficial/particular); definir 3 números: total período, durante 14-30/07 e incremental vs base (promedio diario 01/05-15/06).
