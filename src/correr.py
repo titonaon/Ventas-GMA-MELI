@@ -1,26 +1,23 @@
-# corre una consulta de sql/consultas.sql por nombre
-# uso: python src/correr.py totales
+# corre una consulta de sql/consultas.sql por nombre, para probar
+# uso: python src/correr.py totales [config/otro_evento.yaml]
 import re
 import sys
-from pathlib import Path
 
 import duckdb
 
-
-def leer_bloques(ruta="sql/consultas.sql"):
-    texto = Path(ruta).read_text(encoding="utf-8")
-    partes = re.split(r"^--\s*name:\s*(\w+)\s*$", texto, flags=re.MULTILINE)[1:]
-    return dict(zip(partes[::2], partes[1::2]))
+from pipeline import cargar_config, leer_bloques, preparar_variables
 
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")  # si no, windows no imprime las tablas
     bloques = leer_bloques()
     pedido = sys.argv[1] if len(sys.argv) > 1 else "carga"
+    config = sys.argv[2] if len(sys.argv) > 2 else "config/olimpiadas_2026.yaml"
     if pedido not in bloques:
         sys.exit(f"No existe el bloque '{pedido}'. Disponibles: {', '.join(bloques)}")
 
     con = duckdb.connect()  # en memoria
+    preparar_variables(con, cargar_config(config))
 
     # primero corro los bloques que crean tablas, si no la consulta no las encuentra
     for nombre, sql in bloques.items():

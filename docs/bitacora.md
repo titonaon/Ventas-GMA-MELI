@@ -1,7 +1,7 @@
 # Bitácora — Challenge Reporting & Automation
 
 ## Contexto vigente
-- Paso actual: **Etapa 5 — Pipeline y config**. Etapas 1 a 4 cerradas. Total evento USD 274.654,31; incremental USD 205.948,33 (#9).
+- Paso actual: **Etapa 7 — README y entrega** (etapas 1 a 6 cerradas). Etapas 1 a 4 cerradas. Total evento USD 274.654,31; incremental USD 205.948,33 (#9).
 - Para correr bloques: `python src/correr.py <bloque>` (siempre corre `carga` primero).
 - Trabajo en conjunto (decisión #6): Claude puede escribir código, de a partes chicas y explicando; el usuario valida cada paso.
 - Motor SQL: **DuckDB** (decisión #5).
@@ -73,6 +73,15 @@
 - **[Decisión #9]** Incremental sin recorte: USD 205,9K.
 - **[Decisión]** Para responder "¿valió la pena el oficial?" se agrega una columna `venta_cat_exclusivas` a `oficial_vs_particular` en vez de un bloque nuevo; el dato de sobreprecio queda fuera del reporte. Criterio: solo lo necesario para lo que pide el mail.
 - **[Hecho]** Etapa 4 cerrada (conclusiones abajo). Inicio etapa 5: parametrizar con variables de DuckDB (`SET VARIABLE` + `getvariable()`), probado en DuckDB 1.5.6 con rutas, fechas y listas.
+
+- **[Hecho]** Etapa 5 (automatización, hecha con ayuda de IA): `config/olimpiadas_2026.yaml` con 13 valores + `evento`/`salida`; SQL sin valores fijos (`getvariable()`; días de base/evento/período calculados en `carga`); `src/pipeline.py` corre todo y genera `output/olimpiadas_2026/revision_titulos.csv`; `correr.py` reutiliza las funciones del pipeline. Test: los 20 bloques dan idéntico a antes (`calidad_identicas` solo cambia el orden de filas, no tiene ORDER BY).
+- **[Hallazgo]** Prueba con libros en `categorias_evento`: entra "Libro Historia de los Juegos Olímpicos Antiguos" porque no tiene año en el título. La regla del año no cubre falsos positivos sin año → para otros eventos, el resguardo es revisar `revision_titulos.csv` (o sumar un `excluir_titulos` en la config).
+
+- **[Hecho]** Agregado `excluir_titulos` a la config (regex, "" = no excluir) y a `productos_evento`. Olimpiadas: `antiguos|modelo`. Tests: números sin cambios (274.654,31 / 205.948,33); con libros en categorías ahora da 363.058,40 (antes 386.066 por el libro de historia).
+- **[Pregunta]** Inicio etapa 6 → propuesta de diseño del HTML de una pantalla.
+
+- **[Hecho]** Etapa 6 (con ayuda de IA): reporte HTML con formato Mercado Libre (logo oficial descargado de mlstatic.com, amarillo #FFE600, azul #3483FA). Paleta de gráficos validada (oficial #3F48A8 = azul marino de marca un paso más claro para pasar el chequeo de luminosidad; particular #3483FA). Todo embebido (logo en base64, Chart.js + plugin annotation) → un solo archivo de ~250KB que anda sin internet. Textos del reporte en `config` (sección `reporte`, con `{{ numeros }}` que completa el pipeline). Nuevo bloque SQL `por_categoria` para el gráfico del oficial. Probado en escritorio y celular.
+- **[Decisión]** Pico del reporte = ×13,5 (máximo semanal de `curva_semanal`, con un decimal) para no redondear a ×14 y que coincida con las conclusiones.
 
 ## Conclusiones (etapa 4)
 **Resumen:** Las Olimpiadas generaron USD 206K de venta incremental. El efecto duró unas 7 semanas y la mitad de esa venta se dio antes o después de los Juegos.

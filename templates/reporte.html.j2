@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ rep.titulo }} · {{ rep.area }}</title>
+<style>
+  :root {
+    color-scheme: light;
+    --amarillo: #FFE600;     /* marca */
+    --azul: #3483FA;         /* marca, acciones */
+    --azul-claro: #E3EDFB;
+    --fondo: #EDEDED;
+    --card: #FFFFFF;
+    --texto: rgba(0, 0, 0, .9);
+    --texto-2: rgba(0, 0, 0, .55);
+    --linea: #E6E6E6;
+    --serie-oficial: #3F48A8;     /* azul marino de marca, un paso mas claro para graficos */
+    --serie-particular: #3483FA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fondo); color: var(--texto);
+    font-family: "Proxima Nova", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px; line-height: 1.45;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  header { background: var(--amarillo); box-shadow: 0 1px 0 rgba(0,0,0,.1); }
+  .header-in { max-width: 1180px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 16px; }
+  .header-in img { height: 34px; }
+  .header-in .area { font-size: 14px; color: var(--texto); border-left: 1px solid rgba(0,0,0,.25); padding-left: 16px; }
+  .header-in .periodo { margin-left: auto; font-size: 13px; color: var(--texto); text-align: right; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0 0 6px; }
+  .resumen { font-size: 18px; margin: 0 0 20px; max-width: 860px; }
+
+  .card { background: var(--card); border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.12); padding: 20px 24px; }
+  .grid { display: grid; gap: 16px; margin-bottom: 16px; }
+  .grid > *, .libros > * { min-width: 0; }  /* si no, los graficos estiran la grilla en pantallas chicas */
+  .kpis { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+  .dos { grid-template-columns: 1fr 1fr; }
+
+  .kpi .label { font-size: 14px; color: var(--texto-2); }
+  .kpi .valor { font-size: 30px; font-weight: 600; margin-top: 4px; }
+  .kpi .nota { font-size: 13px; color: var(--texto-2); }
+  .kpi.hero { border-top: 4px solid var(--azul); }
+  .kpi.hero .valor { font-size: 48px; line-height: 1.1; }
+
+  .num { font-size: 13px; font-weight: 600; color: var(--azul); letter-spacing: .02em; text-transform: uppercase; }
+  h2 { font-size: 20px; font-weight: 600; margin: 4px 0 6px; }
+  .texto { color: var(--texto-2); margin: 0 0 10px; max-width: 760px; }
+  .reco { display: inline-block; background: var(--azul-claro); color: var(--texto); border-radius: 6px; padding: 6px 10px; font-size: 14px; }
+  .reco b { color: #2968C8; }
+  .grafico { position: relative; height: 260px; margin-top: 14px; }
+  .grafico.alto { height: 290px; }
+
+  .leyenda { display: flex; gap: 16px; font-size: 13px; color: var(--texto-2); margin-top: 12px; flex-wrap: wrap; }
+  .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .leyenda i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .leyenda i.linea { height: 2px; border-radius: 0; background: rgba(0,0,0,.45); }
+  .leyenda i.franja { background: rgba(255, 230, 0, .45); }
+
+  .libros { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
+  .libros .valor { font-size: 34px; font-weight: 600; }
+  .limitacion { font-size: 14px; color: var(--texto-2); }
+
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--azul); font-weight: 600; font-size: 14px; }
+  details ul { margin: 12px 0 0; padding-left: 18px; color: var(--texto-2); font-size: 14px; }
+  details li { margin-bottom: 6px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 14px; }
+  th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--linea); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--texto-2); font-weight: 600; }
+
+  footer { max-width: 1180px; margin: 0 auto; padding: 0 16px 32px; font-size: 12px; color: var(--texto-2); }
+
+  @media (max-width: 900px) {
+    .kpis { grid-template-columns: 1fr 1fr; }
+    .dos, .libros { grid-template-columns: 1fr; }
+    .header-in .periodo { display: none; }
+  }
+  @media (max-width: 560px) {
+    .kpis { grid-template-columns: 1fr; }
+    .kpi.hero .valor { font-size: 40px; }
+    .card { padding: 16px; }
+    h1 { font-size: 24px; } .resumen { font-size: 16px; }
+  }
+  @media print { body { background: #fff; } .card { box-shadow: none; border: 1px solid var(--linea); } details { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-in">
+    <img src="data:image/png;base64,{{ logo_b64 }}" alt="Mercado Libre">
+    <span class="area">Reportes · {{ rep.area }}</span>
+    <span class="periodo">{{ cfg.evento }}<br>{{ cfg.inicio_evento.strftime('%d/%m') }} al {{ cfg.fin_evento.strftime('%d/%m/%Y') }}</span>
+  </div>
+</header>
+
+<main>
+  <h1>{{ rep.titulo }}</h1>
+  <p class="resumen">{{ resumen }}</p>
+
+  <section class="grid kpis">
+    <div class="card kpi hero">
+      <div class="label">Venta incremental</div>
+      <div class="valor">{{ numeros.incremental }}</div>
+      <div class="nota">por encima del nivel normal</div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Venta total del período</div>
+      <div class="valor">{{ numeros.total }}</div>
+      <div class="nota">productos del evento, may–ago</div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Durante los Juegos</div>
+      <div class="valor">{{ numeros.durante }}</div>
+      <div class="nota">{{ cfg.inicio_evento.strftime('%d/%m') }} al {{ cfg.fin_evento.strftime('%d/%m') }}</div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Pico vs nivel normal</div>
+      <div class="valor">{{ numeros.pico }}</div>
+      <div class="nota">venta diaria en la mejor semana</div>
+    </div>
+  </section>
+
+  <section class="card grid" style="gap:0">
+    <div class="num">1 · Duración</div>
+    <h2>{{ mensajes.duracion.titulo }}</h2>
+    <p class="texto">{{ mensajes.duracion.texto }}</p>
+    <div><span class="reco"><b>Recomendación:</b> {{ mensajes.duracion.recomendacion }}</span></div>
+    <div class="grafico alto"><canvas id="g-curva" aria-label="Venta diaria promedio por semana"></canvas></div>
+    <div class="leyenda">
+      <span><i style="background:var(--serie-particular)"></i>Venta por día (promedio de la semana)</span>
+      <span><i class="linea"></i>Nivel normal</span>
+      <span><i class="franja"></i>Semanas de los Juegos</span>
+    </div>
+  </section>
+
+  <section class="grid dos">
+    <div class="card">
+      <div class="num">2 · Merchandising oficial</div>
+      <h2>{{ mensajes.oficial.titulo }}</h2>
+      <p class="texto">{{ mensajes.oficial.texto }}</p>
+      <div><span class="reco"><b>Recomendación:</b> {{ mensajes.oficial.recomendacion }}</span></div>
+      <div class="grafico"><canvas id="g-categoria" aria-label="Venta por categoría, oficial y particular"></canvas></div>
+      <div class="leyenda">
+        <span><i style="background:var(--serie-oficial)"></i>Oficial</span>
+        <span><i style="background:var(--serie-particular)"></i>Particulares</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="num">3 · Países</div>
+      <h2>{{ mensajes.paises.titulo }}</h2>
+      <p class="texto">{{ mensajes.paises.texto }}</p>
+      <div><span class="reco"><b>Recomendación:</b> {{ mensajes.paises.recomendacion }}</span></div>
+      <div class="grafico"><canvas id="g-pais" aria-label="Venta por país, oficial y particular"></canvas></div>
+      <div class="leyenda">
+        <span><i style="background:var(--serie-oficial)"></i>Oficial</span>
+        <span><i style="background:var(--serie-particular)"></i>Particulares</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card libros" style="margin-bottom:16px">
+    <div>
+      <div class="num">4 · Fuera del análisis</div>
+      <div class="valor">{{ numeros.libros_total }}</div>
+      <div class="limitacion">en libros y pósters del evento</div>
+    </div>
+    <div>
+      <h2>{{ mensajes.libros.titulo }}</h2>
+      <p class="texto">{{ mensajes.libros.texto }}</p>
+      <span class="reco"><b>Recomendación:</b> {{ mensajes.libros.recomendacion }}</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <p class="limitacion" style="margin:0"><b>Limitación:</b> {{ rep.limitacion }}</p>
+    <details>
+      <summary>Criterios y metodología</summary>
+      <ul>{% for c in rep.criterios %}<li>{{ c }}</li>{% endfor %}</ul>
+    </details>
+    <details>
+      <summary>Ver datos por país</summary>
+      <table>
+        <thead><tr><th>País</th><th>Venta total (USD)</th><th>Incremental (USD)</th><th>Pico vs normal</th><th>% oficial</th><th>% del total</th></tr></thead>
+        <tbody>{% for r in tabla_paises %}<tr><td>{{ r.pais }}</td><td>{{ r.total }}</td><td>{{ r.incremental }}</td><td>{{ r.veces }}</td><td>{{ r.oficial }}</td><td>{{ r.peso }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </details>
+  </section>
+</main>
+
+<footer>Fuente: ventas del área 01/05 al 31/08/2026, montos en USD · Generado el {{ generado }} con <code>src/pipeline.py</code></footer>
+
+<script>{{ librerias_js | safe }}</script>
+<script>
+const G = {{ graficos_json | safe }};
+const css = getComputedStyle(document.documentElement);
+const C = {
+  oficial: css.getPropertyValue('--serie-oficial').trim(),
+  particular: css.getPropertyValue('--serie-particular').trim(),
+  texto2: 'rgba(0,0,0,.55)', linea: '#E6E6E6',
+};
+const usd = v => 'USD ' + Math.round(v).toLocaleString('es-AR');
+const usdK = v => 'USD ' + Math.round(v / 1000).toLocaleString('es-AR') + 'K';
+
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.color = C.texto2;
+Chart.defaults.animation = false;
+Chart.defaults.maintainAspectRatio = false;
+Chart.defaults.plugins.legend.display = false;   // la leyenda va en html, debajo de cada grafico
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,0,0,.85)';
+Chart.defaults.plugins.tooltip.padding = 10;
+
+// 1. curva semanal
+new Chart(document.getElementById('g-curva'), {
+  type: 'line',
+  data: { labels: G.curva.labels, datasets: [{
+    label: 'Venta por día', data: G.curva.venta_x_dia,
+    borderColor: C.particular, backgroundColor: 'rgba(52,131,250,.10)', fill: true,
+    borderWidth: 2, tension: .25, pointRadius: 4, pointHoverRadius: 6,
+    pointBackgroundColor: C.particular, pointBorderColor: '#fff', pointBorderWidth: 2,
+  }]},
+  options: {
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: { grid: { display: false }, title: { display: true, text: 'Semana (inicio)' } },
+      y: { beginAtZero: true, grace: '12%', grid: { color: C.linea }, border: { display: false },
+           ticks: { callback: v => usdK(v) } },
+    },
+    plugins: {
+      tooltip: { callbacks: {
+        title: i => 'Semana del ' + i[0].label,
+        label: i => usd(i.raw) + ' por día  (×' + (i.raw / G.curva.base).toFixed(1).replace('.', ',') + ' el normal)',
+      }},
+      annotation: { annotations: {
+        juegos: { type: 'box', xMin: G.curva.evento_desde - .5, xMax: G.curva.evento_hasta + .5,
+                  backgroundColor: 'rgba(255,230,0,.35)', borderWidth: 0, drawTime: 'beforeDatasetsDraw',
+                  label: { display: true, content: 'Juegos', position: { x: 'center', y: 'start' },
+                           color: 'rgba(0,0,0,.7)', font: { weight: 600 } } },
+        base: { type: 'line', yMin: G.curva.base, yMax: G.curva.base, borderColor: 'rgba(0,0,0,.45)', borderWidth: 1,
+                label: { display: true, content: 'Nivel normal ' + usd(G.curva.base) + '/día', position: 'start',
+                         backgroundColor: 'transparent', color: 'rgba(0,0,0,.6)', yAdjust: -10, font: { size: 11 } } },
+      }},
+    },
+  },
+});
+
+// barras apiladas horizontales oficial / particular (categoria y pais)
+function apiladas(id, d) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: d.labels, datasets: [
+      { label: 'Oficial', data: d.oficial, backgroundColor: C.oficial },
+      { label: 'Particulares', data: d.particular, backgroundColor: C.particular },
+    ].map(s => ({ ...s, maxBarThickness: 24, borderColor: '#fff', borderWidth: { right: 2 },
+                  borderSkipped: false,
+                  // solo se redondea la punta de la barra (el ultimo tramo con valor)
+                  borderRadius: ctx => ctx.chart.data.datasets.slice(ctx.datasetIndex + 1)
+                      .some(o => o.data[ctx.dataIndex] > 0) ? 0 : { topRight: 4, bottomRight: 4 } })) },
+    options: {
+      indexAxis: 'y',
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { stacked: true, grid: { color: C.linea }, border: { display: false },
+             ticks: { callback: v => usdK(v), maxRotation: 0, maxTicksLimit: 6 } },
+        y: { stacked: true, grid: { display: false }, ticks: { color: 'rgba(0,0,0,.8)' } },
+      },
+      plugins: { tooltip: { callbacks: {
+        label: i => i.dataset.label + ': ' + usd(i.raw),
+        footer: items => 'Total: ' + usd(items.reduce((a, b) => a + b.raw, 0)),
+      }}},
+    },
+  });
+}
+apiladas('g-categoria', G.categoria);
+apiladas('g-pais', G.pais);
+</script>
+</body>
+</html>

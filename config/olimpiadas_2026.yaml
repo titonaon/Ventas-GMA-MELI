@@ -1,0 +1,72 @@
+# config del reporte de un evento
+# para otro evento: copiar este archivo, cambiar los valores y correr
+#   python src/pipeline.py --config config/<archivo>.yaml
+
+evento: Juegos Olímpicos 2026
+salida: output/olimpiadas_2026
+
+# datos
+ruta_ventas: data/ventas.csv
+ruta_productos: data/productos.csv
+ruta_categorias: data/categorias.csv
+separador_ventas: ";"      # el ventas.csv original viene con ","
+separador_maestros: ";"    # productos y categorias
+
+# fechas
+inicio_evento: 2026-07-14
+fin_evento: 2026-07-30
+inicio_base: 2026-05-01    # base = venta normal, antes de que empiece a subir
+fin_base: 2026-06-15
+
+# como identificar los productos del evento
+vendedores_oficiales: [700100, 700200, 700300, 700400, 700500]
+patron_titulo: olimp       # regex sobre el titulo en minuscula y sin tildes, ej: "mundial|copa del mundo"
+categorias_evento: [camisetas, albumes, cartas]
+anio_evento: "2026"        # titulos con otro año (ej: album 1992) quedan afuera
+excluir_titulos: "antiguos|modelo"   # regex de falsos positivos sin año. "" = no excluir nada
+
+# textos del reporte. entre {{ }} van numeros que calcula el pipeline:
+# incremental, total, durante, pico, pct_oficial, pct_exclusivas, libros_total, libros_veces
+reporte:
+  area: Artículos deportivos
+  titulo: Venta Olimpiadas 2026
+  resumen: >-
+    Las Olimpiadas generaron {{ incremental }} de venta incremental. El efecto duró unas
+    7 semanas y la mitad de esa venta se dio antes o después de los Juegos.
+  mensajes:
+    duracion:
+      titulo: El efecto empieza antes del evento
+      texto: >-
+        Las ventas suben desde 2 semanas antes, durante los Juegos llegan a {{ pico }} el
+        nivel normal y se normalizan 2-3 semanas después.
+      recomendacion: Tener stock y campañas listos 3 semanas antes del próximo evento.
+    oficial:
+      titulo: El merchandising oficial suma por las categorías que incorpora
+      texto: >-
+        Representa el {{ pct_oficial }} de la venta y cada producto vende en línea con los
+        particulares. El {{ pct_exclusivas }} de su venta viene de botellas y mochilas,
+        categorías sin oferta de particulares.
+      recomendacion: Mantenerlo y enfocarlo en productos que no ofrecen otros vendedores.
+    paises:
+      titulo: Brasil y México concentran la venta
+      texto: >-
+        Entre ambos suman el 62% del total. En México el oficial tiene la menor participación
+        (33%), lo que muestra margen de crecimiento. Colombia tuvo el mayor crecimiento,
+        aunque representa solo el 8% de la venta.
+      recomendacion: Priorizar el oficial en México.
+    libros:
+      titulo: Libros y pósters también respondieron al evento
+      texto: >-
+        Sumaron {{ libros_total }} con la misma curva que el resto ({{ libros_veces }} el nivel
+        normal durante los Juegos), aunque no estaban dentro de las categorías analizadas.
+      recomendacion: Incluirlos en el seguimiento del próximo evento.
+  limitacion: >-
+    El análisis se basa solo en ventas. Para evaluar la rentabilidad del oficial se necesitan
+    el margen y el costo de la licencia.
+  criterios:
+    - "Productos del evento: todo lo publicado por la licenciataria (cuentas 700100 a 700500) y, de vendedores particulares, títulos que mencionan el evento en camisetas, álbumes y cartas."
+    - "Se excluyeron títulos de ediciones anteriores (ej: álbum Barcelona 1992, camiseta 2016) y menciones que no son del evento (ej: \"mochila modelo olímpico\"). Su venta no se movió durante los Juegos."
+    - "Base (nivel normal): promedio diario del 01/05 al 15/06, antes de que empiece la suba. Solo hay datos de 2026, no hay comparación contra el año anterior."
+    - "Venta incremental: venta del período (01/05 al 31/08) menos la base por la cantidad de días."
+    - "Se detectaron 10 pares de ventas idénticas con distinto ID (USD ~180, 0,008% del total). Se mantuvieron por no poder confirmar que sean duplicados; se concentran en el pico del evento, conviene revisarlo con el equipo de datos."
+    - "Libros y pósters del evento se muestran aparte porque no estaban en las categorías del pedido."

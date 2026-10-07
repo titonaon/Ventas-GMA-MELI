@@ -3,15 +3,20 @@
 
 
 -- name: carga
--- carga de los csv, pongo el separador a mano para no depender de que lo detecte
+-- carga de los csv. rutas, separadores y fechas salen de la config (getvariable)
 CREATE OR REPLACE TABLE ventas AS
-SELECT * FROM read_csv('data/ventas.csv', delim = ';', header = true);
+SELECT * FROM read_csv(getvariable('ruta_ventas'), delim = getvariable('separador_ventas'), header = true);
 
 CREATE OR REPLACE TABLE productos AS
-SELECT * FROM read_csv('data/productos.csv', delim = ';', header = true);
+SELECT * FROM read_csv(getvariable('ruta_productos'), delim = getvariable('separador_maestros'), header = true);
 
 CREATE OR REPLACE TABLE categorias AS
-SELECT * FROM read_csv('data/categorias.csv', delim = ';', header = true);
+SELECT * FROM read_csv(getvariable('ruta_categorias'), delim = getvariable('separador_maestros'), header = true);
+
+-- dias que se usan para promedios (asi no quedan numeros fijos en las consultas)
+SET VARIABLE dias_base    = getvariable('fin_base') - getvariable('inicio_base') + 1;
+SET VARIABLE dias_evento  = getvariable('fin_evento') - getvariable('inicio_evento') + 1;
+SET VARIABLE dias_periodo = (SELECT COUNT(DISTINCT fecha) FROM ventas);
 
 SELECT 'ventas' AS tabla, COUNT(*) AS filas FROM ventas
 UNION ALL SELECT 'productos', COUNT(*) FROM productos
@@ -84,15 +89,15 @@ WHERE T0.categoria_nombre IS NULL OR T0.categoria_nombre = '';
 -- Títulos que mencionan el evento, con ventas antes / durante / después. Incluyo aca falsos positivos
 SELECT t0.titulo,
        t0.categoria,
-       t0.vendedor_id IN (700100, 700200, 700300, 700400, 700500) AS es_oficial,
+       list_contains(getvariable('vendedores_oficiales'), t0.vendedor_id) AS es_oficial,
        COUNT(DISTINCT t0.producto_id) AS productos,
        
-       SUM(t1.monto_usd) FILTER (WHERE t1.fecha <  '2026-07-14') AS antes,
-       SUM(t1.monto_usd) FILTER (WHERE t1.fecha BETWEEN '2026-07-14' AND '2026-07-30') AS durante,
-       SUM(t1.monto_usd) FILTER (WHERE t1.fecha >= '2026-07-31') AS despues
+       SUM(t1.monto_usd) FILTER (WHERE t1.fecha < getvariable('inicio_evento')) AS antes,
+       SUM(t1.monto_usd) FILTER (WHERE t1.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')) AS durante,
+       SUM(t1.monto_usd) FILTER (WHERE t1.fecha > getvariable('fin_evento')) AS despues
 FROM productos t0
 LEFT JOIN ventas t1 ON t1.producto_id = t0.producto_id
-WHERE strip_accents(lower(t0.titulo)) LIKE '%olimp%'
+WHERE regexp_matches(strip_accents(lower(t0.titulo)), getvariable('patron_titulo'))
 GROUP BY ALL
 ORDER BY t0.categoria, t0.titulo;
 
@@ -104,16 +109,19 @@ ORDER BY t0.categoria, t0.titulo;
 -- oficial: las cuentas de la licenciataria (todo lo que publican es del evento)
 -- particular: titulo con "olimp" en camisetas/albumes/cartas, sacando los que
 -- tienen otro año (album 1992, camiseta 2016)
+-- o alguna palabra de excluir_titulos (ej: "modelo olimpico")
 -- fuera: el resto. los libros/posters 2026 quedan aca, se muestran aparte
 CREATE OR REPLACE TABLE productos_evento AS
 SELECT t0.*,
        regexp_extract(t0.titulo, '(19|20)\d{2}') AS anio_titulo,
        CASE
-         WHEN t0.vendedor_id IN (700100, 700200, 700300, 700400, 700500)
+         WHEN list_contains(getvariable('vendedores_oficiales'), t0.vendedor_id)
            THEN 'oficial'
-         WHEN strip_accents(lower(t0.titulo)) LIKE '%olimp%'
-              AND t0.categoria IN ('camisetas', 'albumes', 'cartas')
-              AND regexp_extract(t0.titulo, '(19|20)\d{2}') IN ('', '2026')
+         WHEN regexp_matches(strip_accents(lower(t0.titulo)), getvariable('patron_titulo'))
+              AND list_contains(getvariable('categorias_evento'), t0.categoria)
+              AND regexp_extract(t0.titulo, '(19|20)\d{2}') IN ('', getvariable('anio_evento'))
+              AND (getvariable('excluir_titulos') = ''
+                   OR NOT regexp_matches(strip_accents(lower(t0.titulo)), getvariable('excluir_titulos')))
            THEN 'particular'
          ELSE 'fuera'
        END AS clasificacion
@@ -143,8 +151,8 @@ SELECT t0.*,
        t1.vendedor_id,
        t1.clasificacion,
        CASE
-         WHEN t0.fecha <= '2026-07-13' THEN 'antes'
-         WHEN t0.fecha <= '2026-07-30' THEN 'durante'
+         WHEN t0.fecha < getvariable('inicio_evento') THEN 'antes'
+         WHEN t0.fecha <= getvariable('fin_evento') THEN 'durante'
          ELSE 'despues'
        END AS periodo
 FROM ventas t0
@@ -157,22 +165,22 @@ SELECT ROUND(SUM(t0.monto_usd), 2) AS total_evento,
 FROM ventas_evento t0;
 
 -- name: totales
--- total del periodo, durante los juegos (14/07 al 30/07) e incremental
--- base = promedio diario del 01/05 al 15/06 (antes de que empiece a subir)
--- incremental = total - base * 123 dias
+-- total del periodo, durante el evento e incremental
+-- base = promedio diario entre inicio_base y fin_base (antes de que empiece a subir)
+-- incremental = total - base * dias del periodo
 WITH venta_dia AS (
     SELECT t0.fecha, SUM(t0.monto_usd) AS venta
     FROM ventas_evento t0
     GROUP BY ALL
 ),
 base AS (
-    SELECT SUM(t0.venta) / 46 AS base_diaria
+    SELECT SUM(t0.venta) / getvariable('dias_base') AS base_diaria
     FROM venta_dia t0
-    WHERE t0.fecha BETWEEN '2026-05-01' AND '2026-06-15'
+    WHERE t0.fecha BETWEEN getvariable('inicio_base') AND getvariable('fin_base')
 )
 SELECT ROUND(SUM(t0.venta), 2) AS total_periodo,
-       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * 123, 2) AS incremental,
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')), 2) AS durante,
+       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * getvariable('dias_periodo'), 2) AS incremental,
        ROUND(ANY_VALUE(t1.base_diaria), 2) AS base_diaria
 FROM venta_dia t0
 CROSS JOIN base t1;
@@ -188,18 +196,18 @@ WITH venta_dia AS (
     GROUP BY ALL
 ),
 base AS (
-    SELECT t0.pais, SUM(t0.venta) / 46 AS base_diaria
+    SELECT t0.pais, SUM(t0.venta) / getvariable('dias_base') AS base_diaria
     FROM venta_dia t0
-    WHERE t0.fecha BETWEEN '2026-05-01' AND '2026-06-15'
+    WHERE t0.fecha BETWEEN getvariable('inicio_base') AND getvariable('fin_base')
     GROUP BY ALL
 )
 SELECT t0.pais,
        ROUND(SUM(t0.venta), 2) AS total_periodo,
-       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * 123, 2) AS incremental,
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')), 2) AS durante,
+       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * getvariable('dias_periodo'), 2) AS incremental,
        ROUND(ANY_VALUE(t1.base_diaria), 2) AS base_diaria,
-       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
-             / COUNT(*) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento'))
+             / COUNT(*) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento'))
              / ANY_VALUE(t1.base_diaria), 1) AS veces_base_durante,
        ROUND(100 * SUM(t0.venta) / SUM(SUM(t0.venta)) OVER (), 1) AS pct_total,
        ROUND(100 * SUM(t0.venta_oficial) / SUM(t0.venta), 1) AS pct_oficial
@@ -223,9 +231,9 @@ WITH venta_dia AS (
     GROUP BY ALL
 ),
 base AS (
-    SELECT t0.clasificacion, SUM(t0.venta) / 46 AS base_diaria
+    SELECT t0.clasificacion, SUM(t0.venta) / getvariable('dias_base') AS base_diaria
     FROM venta_dia t0
-    WHERE t0.fecha BETWEEN '2026-05-01' AND '2026-06-15'
+    WHERE t0.fecha BETWEEN getvariable('inicio_base') AND getvariable('fin_base')
     GROUP BY ALL
 ),
 prods AS (
@@ -237,10 +245,10 @@ SELECT t0.clasificacion,
        ANY_VALUE(t2.productos) AS productos,
        ROUND(SUM(t0.venta), 2) AS total_periodo,
        ROUND(SUM(t0.venta) / ANY_VALUE(t2.productos), 2) AS venta_x_producto,
-       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * 123, 2) AS incremental,
-       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
-             / COUNT(*) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30')
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')), 2) AS durante,
+       ROUND(SUM(t0.venta) - ANY_VALUE(t1.base_diaria) * getvariable('dias_periodo'), 2) AS incremental,
+       ROUND(SUM(t0.venta) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento'))
+             / COUNT(*) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento'))
              / ANY_VALUE(t1.base_diaria), 1) AS veces_base_durante,
        ROUND(100 * SUM(t0.venta) / SUM(SUM(t0.venta)) OVER (), 1) AS pct_total,
        ROUND(SUM(t0.venta_cat_exclusivas), 2) AS venta_cat_exclusivas,
@@ -256,9 +264,9 @@ ORDER BY total_periodo DESC;
 -- venta por semana vs la base, para ver cuanto duro el efecto
 -- la primera y la ultima semana estan incompletas, por eso uso venta por dia
 WITH base AS (
-    SELECT SUM(t0.monto_usd) / 46 AS base_diaria
+    SELECT SUM(t0.monto_usd) / getvariable('dias_base') AS base_diaria
     FROM ventas_evento t0
-    WHERE t0.fecha BETWEEN '2026-05-01' AND '2026-06-15'
+    WHERE t0.fecha BETWEEN getvariable('inicio_base') AND getvariable('fin_base')
 )
 SELECT date_trunc('week', t0.fecha) AS semana,
        COUNT(DISTINCT t0.fecha) AS dias,
@@ -277,12 +285,22 @@ ORDER BY semana;
 SELECT t1.categoria,
        COUNT(DISTINCT t1.producto_id) AS productos,
        ROUND(SUM(t0.monto_usd), 2) AS total_periodo,
-       ROUND(SUM(t0.monto_usd) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30'), 2) AS durante,
-       ROUND((SUM(t0.monto_usd) FILTER (WHERE t0.fecha BETWEEN '2026-07-14' AND '2026-07-30') / 17)
-           / (SUM(t0.monto_usd) FILTER (WHERE t0.fecha BETWEEN '2026-05-01' AND '2026-06-15') / 46), 1) AS veces_base_durante
+       ROUND(SUM(t0.monto_usd) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')), 2) AS durante,
+       ROUND((SUM(t0.monto_usd) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_evento') AND getvariable('fin_evento')) / getvariable('dias_evento'))
+           / (SUM(t0.monto_usd) FILTER (WHERE t0.fecha BETWEEN getvariable('inicio_base') AND getvariable('fin_base')) / getvariable('dias_base')), 1) AS veces_base_durante
 FROM ventas t0
 JOIN productos_evento t1 ON t1.producto_id = t0.producto_id
 WHERE t1.clasificacion = 'fuera'
-  AND strip_accents(lower(t1.titulo)) LIKE '%olimp%'
-  AND t1.anio_titulo = '2026'
+  AND regexp_matches(strip_accents(lower(t1.titulo)), getvariable('patron_titulo'))
+  AND t1.anio_titulo = getvariable('anio_evento')
 GROUP BY ALL;
+
+
+-- name: por_categoria
+-- venta del evento por categoria, oficial vs particular (para el grafico del reporte)
+SELECT t0.categoria,
+       ROUND(COALESCE(SUM(t0.monto_usd) FILTER (WHERE t0.clasificacion = 'oficial'), 0), 2)    AS oficial,
+       ROUND(COALESCE(SUM(t0.monto_usd) FILTER (WHERE t0.clasificacion = 'particular'), 0), 2) AS particular
+FROM ventas_evento t0
+GROUP BY ALL
+ORDER BY oficial + particular DESC;
